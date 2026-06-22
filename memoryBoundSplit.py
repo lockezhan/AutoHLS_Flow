@@ -1440,7 +1440,7 @@ class memoryBound:
         header = ["#option solver baron;", "#option baron_options 'maxtime=60 trace=nlp.trace sumfile=nlp.sum';"]
         import os
         gurobi_log_path = os.path.join(self.folder, "gurobi.log")
-        header += ["option solver gurobi;", f"option gurobi_options 'lim:time=180 mipgap=0.05 tech:logfile={gurobi_log_path} qp:nonconvex=2';"]
+        header += ["option solver gurobi;", f"option gurobi_options 'lim:time=300 mipgap=0.05 tech:logfile={gurobi_log_path} qp:nonconvex=2 mipfocus=1 heurfrac=0.5';"]
         header += ["#option solver octeract;", "#option octeract_options 'max_solver_time=60';"]
 
         

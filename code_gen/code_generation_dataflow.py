@@ -192,10 +192,11 @@ class AST:
 
 
 class CodeGeneration:
-    def __init__(self, nlp_file, log_file, output, analysis):
+    def __init__(self, nlp_file, log_file, output, analysis, has_uram=False):
         self.nlp_file = nlp_file
         self.log_file = log_file
         self.analysis = analysis
+        self.has_uram = has_uram
 
         
         
@@ -1548,6 +1549,7 @@ class CodeGeneration:
                             info_reuse[id_fuse_task][dd] += [res]
 
 
+
         for array, defi, name_fifo, original_def, original_name in fct_load:
 
             if array in list(self.order_read_per_array.keys()) and len(self.order_read_per_array[array]) > 1:
@@ -1728,6 +1730,7 @@ class CodeGeneration:
             full_array_but_not_full_transfer = []
 
             for dd in range(dim_output):
+                local_declarations = set()
                 # arg = []
                 read_inside_loop = []
                 read_outside_loop = []
@@ -1812,10 +1815,19 @@ class CodeGeneration:
                                 # ivi
                                 # size_[-1] = str(self.find_size_last_dim(int(size_[-1]), self.burst[name])) # FIXME 
                                 str_ = f"    float {name}_{r}[{']['.join(size_)}];\n // FT{id_fuse_task} \n"
-                                # str_ = f"    float {name}_{r}[{']['.join(size_)}];\n"
-                                # str_ += f"// 44{info_reuse[id_fuse_task][dd+1][id_arr][1]}\n"
-                                
-                                # str_ += f"// {size}\n"
+                                if self.has_uram:
+                                    elem_count = 1
+                                    for s in size_:
+                                        try:
+                                            elem_count *= int(s)
+                                        except:
+                                            pass
+                                    if elem_count >= 1024:
+                                        str_ += f"#ifdef USE_URAM\n"
+                                        str_ += f"    #pragma HLS bind_storage variable={name}_{r} type=RAM_2P impl=URAM\n"
+                                        str_ += f"#else\n"
+                                        str_ += f"    #pragma HLS bind_storage variable={name}_{r} type=RAM_2P impl=BRAM\n"
+                                        str_ += f"#endif\n"
                                 
                                 definition_array_on_chip = self.add_definition_array_on_chip(definition_array_on_chip, name, size_, id_fuse_task)
 
@@ -1847,8 +1859,9 @@ class CodeGeneration:
 
                                 for d_ in range(len(cyclic_factor)):
                                     str_ += f"#pragma HLS array_partition variable={name}_{r} cyclic factor={cyclic_factor[d_]} dim={d_+1} \n"
-                                if str_ not in code:
+                                if str_ not in local_declarations:
                                     code += str_
+                                    local_declarations.add(str_)
                             definition_array[id_fuse_task][name] = f"float {name}[{']['.join(size_)}]"
                             for d_ in range(dd+1, dim_output+1):
                                 str_ = f"{name}"
@@ -1881,6 +1894,19 @@ class CodeGeneration:
                                 # for r in range(nb):
                                 # size_[-1] = str(self.find_size_last_dim(int(size_[-1]), self.burst[name]))
                                 str_ = f"    float {name}[{']['.join(size_)}];\n"
+                                if self.has_uram:
+                                    elem_count = 1
+                                    for s in size_:
+                                        try:
+                                            elem_count *= int(s)
+                                        except:
+                                            pass
+                                    if elem_count >= 1024:
+                                        str_ += f"#ifdef USE_URAM\n"
+                                        str_ += f"    #pragma HLS bind_storage variable={name} type=RAM_2P impl=URAM\n"
+                                        str_ += f"#else\n"
+                                        str_ += f"    #pragma HLS bind_storage variable={name} type=RAM_2P impl=BRAM\n"
+                                        str_ += f"#endif\n"
                                 # str_ += f"// 22 {size} {name} {keys}\n"
                                 # str_ += f" // {info_reuse[id_fuse_task][dd][id_arr]}\n"
                                 # str_ += f"\n\n // ##############\n\n"
@@ -1898,21 +1924,23 @@ class CodeGeneration:
                                         if arr_[0] == name:
                                             fac = ir[dd][a][2][str(d_)]["1"]
                                     str_ += f"#pragma HLS array_partition variable={name} cyclic factor={fac} dim={d_+1} \n"
-                                if str_ not in code:
+                                if str_ not in local_declarations:
                                     full_transfer = False
                                     if self.info_log[f"level_reuse_{name}_FT{id_fuse_task}_under0"] == 1 and self.info_log[f"level_transfer_{name}_FT{id_fuse_task}_under0"] == 1:
                                         full_transfer = True
                                     if full_transfer:
                                         full_array += [name]
                                         code += str_
+                                        local_declarations.add(str_)
                                     else:
                                         full_array_but_not_full_transfer += [name]
                                         for r in range(3):
                                             ind = str_.index("[")
                                             str__ = str_[0:ind] + f"_{r}" + str_[ind:].replace(f"variable={name}", f"variable={name}_{r}")
                                             # code += f"// {str_[ind:]} ##\n"
-                                            if str__ not in code:
+                                            if str__ not in local_declarations:
                                                 code += str__
+                                                local_declarations.add(str__)
                                 for d_ in range(dd+1, dim_output+1):
                                     str_ = f"{name}"
                                     if str_ not in arg_per_intra[id_fuse_task][d_]:
@@ -3039,6 +3067,8 @@ class CodeGeneration:
         with open(h_name, "w") as f:
             f.write("#ifndef AUTOHLS_FLOW_H\n")
             f.write("#define AUTOHLS_FLOW_H\n\n")
+            if self.has_uram:
+                f.write("#define USE_URAM\n\n")
             for h in h_definition:
                 f.write(h + "\n")
             f.write("\n")

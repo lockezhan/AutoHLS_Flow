@@ -56,6 +56,8 @@ if __name__ == "__main__":
     parser.add_argument("--ON_CHIP_MEM_SIZE", type=int, default=0, help="Number of SLR. Default is 3")
     parser.add_argument("--DSP", type=int, default=0, help="Number of SLR. Default is 3")
     parser.add_argument("--device", type=str, default=None, help="Target device profile (e.g., AC7t1500)")
+    parser.add_argument("--has_uram", action="store_true", help="Force enabling URAM storage binding for large arrays")
+    parser.add_argument("--node_limit", type=int, default=None, help="Limit the number of ONNX nodes to parse")
 
 
     parser.add_argument("--folder", type=str, default="hls_output", help="Name of the folder to store the files. Default is 'hls_output'")
@@ -91,7 +93,7 @@ if __name__ == "__main__":
 
     if args.onnx_file:
         import onnx_frontend
-        nodes = onnx_frontend.parse_onnx_to_hls(args.onnx_file)
+        nodes = onnx_frontend.parse_onnx_to_hls(args.onnx_file, node_limit=args.node_limit)
         
         schedule = []
         dic = {}
@@ -201,6 +203,16 @@ if __name__ == "__main__":
         res.DSP = 2560  # MLP blocks
         res.factor = 1.0
         print(f"[Device Config] Loaded Achronix AC7t1500 profile: SLR={res.SLR}, Mem={res.ON_CHIP_MEM_SIZE} bytes, DSP={res.DSP}")
+    elif args.device == "Alveo_V80":
+        res.SLR = 1
+        res.ON_CHIP_MEM_SIZE = (132 + 541) * 1024 * 1024 // 8  # BRAM + URAM in bytes
+        res.DSP = 10848  # Alveo V80 DSPs
+        res.factor = 1.0
+        res.has_uram = True
+        print(f"[Device Config] Loaded Alveo V80 profile: SLR={res.SLR}, Mem={res.ON_CHIP_MEM_SIZE} bytes, DSP={res.DSP}, has_uram=True")
+
+    if args.has_uram:
+        res.has_uram = True
 
     if args.SLR != 0:
         res.SLR = args.SLR
@@ -233,7 +245,7 @@ if __name__ == "__main__":
 
 
 
-    code_gen.code_gen(args.update_shape, res.SLR, nlp_file, nlp_log, args.file, output, host_name, schedule, analysis)
+    code_gen.code_gen(args.update_shape, res.SLR, nlp_file, nlp_log, args.file, output, host_name, schedule, analysis, getattr(res, 'has_uram', False))
 
     try:
         os.system(f"clang-format -i {output}")

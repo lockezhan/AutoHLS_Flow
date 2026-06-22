@@ -8,14 +8,14 @@ import os
 
 class code_gen:
 
-    def __init__(self, update_shape, nb_slr, nlp_file, nlp_log, cfile, output, host_name, schedule, analysis):
+    def __init__(self, update_shape, nb_slr, nlp_file, nlp_log, cfile, output, host_name, schedule, analysis, has_uram=False):
 
         folder = output.split("/")[:-1]
         folder = "/".join(folder)
         if update_shape:
-            code_generation_dataflow2.CodeGeneration(nlp_file,nlp_log, output, analysis)
+            code_generation_dataflow2.CodeGeneration(nlp_file,nlp_log, output, analysis, has_uram)
         else:
-            code_generation_dataflow.CodeGeneration(nlp_file,nlp_log, output, analysis)
+            code_generation_dataflow.CodeGeneration(nlp_file,nlp_log, output, analysis, has_uram)
         post_pass.GeneratePostPass(update_shape, output, nlp_file, nlp_log)
 
         if cfile is not None:

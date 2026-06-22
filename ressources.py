@@ -21,6 +21,7 @@ class Ressources:
         self.MAX_BUFFER_SIZE = 4096
         self.MAX_UF = 4096
         self.ON_CHIP_MEM_SIZE = 1512000
+        self.has_uram = False
         ###
 
         # self.SLR = 3

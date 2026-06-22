@@ -41,8 +41,8 @@ def run_ampl_py(folder, nlp_file="nlp.mod", nlp_log="nlp.log", lic_uuid=None):
     with open(log_path, "w") as f:
         f.write(out)
 
-    if "infeasible" in out.lower() or "objective" not in out.lower():
-        print("[错误日志] 求解器未能找到可行解 (Infeasible Problem)。\n很可能是由于您提供的约束（如 --ON_CHIP_MEM_SIZE 或其它资源限制）太小所导致。\n您可以到控制台检查输出或放宽参数重试！")
+    if "infeasible" in out.lower() or "without a feasible solution" in out.lower() or "best objective -" in out.lower() or "solution count 0" in out.lower() or "objective" not in out.lower():
+        print("[错误日志] 求解器未能找到可行解 (Infeasible or No Feasible Solution)。\n很可能是由于您提供的约束太紧、时间限制已到，或者模型本身不可解。\n您可以到控制台检查输出或放宽参数（例如限制 ONNX 节点数量）重试！")
         import sys
         sys.exit(1)
 

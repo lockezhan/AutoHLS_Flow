@@ -52,3 +52,7 @@ onnx_files/
 dummy_deit.onnx
 build_*
 tmp/
+
+# test
+
+test_*

@@ -35,7 +35,7 @@ def sanitize_name(name):
         clean = "v" + clean
     return clean
 
-def parse_onnx_to_hls(onnx_path="deit_model.onnx"):
+def parse_onnx_to_hls(onnx_path="deit_model.onnx", node_limit=None):
     """
     绕过 PoCC，直接将 ONNX 算子映射为 AutoHLS_Flow 语法树/节点列表
     """
@@ -71,8 +71,11 @@ def parse_onnx_to_hls(onnx_path="deit_model.onnx"):
         print("[Warning] No MatMul nodes found in ONNX. Returning Mock DeiT layer.")
         return mock_deit_layer()
 
-    # We will compile all MatMul nodes
+    # We will compile all MatMul nodes (or up to node_limit)
     target_nodes = matmul_nodes
+    if node_limit is not None:
+        target_nodes = target_nodes[:node_limit]
+        print(f"[ONNX Frontend] Limiting compilation to the first {node_limit} nodes.")
     print(f"[ONNX Frontend] Selected {len(target_nodes)} target nodes for HLS compilation:")
     for t_node in target_nodes:
         print(f"  - {t_node.name}")

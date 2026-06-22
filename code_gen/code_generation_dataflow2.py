@@ -181,10 +181,11 @@ class AST:
 
 
 class CodeGeneration:
-    def __init__(self, nlp_file, log_file, output, analysis):
+    def __init__(self, nlp_file, log_file, output, analysis, has_uram=False):
         self.nlp_file = nlp_file
         self.log_file = log_file
         self.analysis = analysis
+        self.has_uram = has_uram
 
         
         
@@ -1535,6 +1536,19 @@ class CodeGeneration:
                                     size_ = list(map(str,new_size_))
 
                                 str_ = f"    float {name}_{r}[{']['.join(size_)}];\n"
+                                if self.has_uram:
+                                    elem_count = 1
+                                    for s in size_:
+                                        try:
+                                            elem_count *= int(s)
+                                        except:
+                                            pass
+                                    if elem_count >= 1024:
+                                        str_ += f"#ifdef USE_URAM\n"
+                                        str_ += f"    #pragma HLS bind_storage variable={name}_{r} type=RAM_2P impl=URAM\n"
+                                        str_ += f"#else\n"
+                                        str_ += f"    #pragma HLS bind_storage variable={name}_{r} type=RAM_2P impl=BRAM\n"
+                                        str_ += f"#endif\n"
                                 
                                 definition_array_on_chip = self.add_definition_array_on_chip(definition_array_on_chip, name, size_, id_fuse_task)
 
@@ -1602,6 +1616,19 @@ class CodeGeneration:
                                     size_ = list(map(str,new_size_))
 
                                 str_ = f"    float {name}[{']['.join(size_)}];\n"
+                                if self.has_uram:
+                                    elem_count = 1
+                                    for s in size_:
+                                        try:
+                                            elem_count *= int(s)
+                                        except:
+                                            pass
+                                    if elem_count >= 1024:
+                                        str_ += f"#ifdef USE_URAM\n"
+                                        str_ += f"    #pragma HLS bind_storage variable={name} type=RAM_2P impl=URAM\n"
+                                        str_ += f"#else\n"
+                                        str_ += f"    #pragma HLS bind_storage variable={name} type=RAM_2P impl=BRAM\n"
+                                        str_ += f"#endif\n"
                                 definition_array_on_chip = self.add_definition_array_on_chip(definition_array_on_chip, name, size_, id_fuse_task)
                                 # size_reuse[id_fuse_task] = {}
                                 size_reuse[id_fuse_task][f"read_{name}_FT{id_fuse_task}"] = size_
@@ -2650,6 +2677,8 @@ class CodeGeneration:
         with open(h_name, "w") as f:
             f.write("#ifndef AUTOHLS_FLOW_H\n")
             f.write("#define AUTOHLS_FLOW_H\n\n")
+            if self.has_uram:
+                f.write("#define USE_URAM\n\n")
             for h in h_definition:
                 f.write(h + "\n")
             f.write("\n")

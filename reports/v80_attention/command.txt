@@ -1,0 +1,8 @@
+python main.py \
+  --onnx_file onnx_files/deit_model.onnx \
+  --device Alveo_V80 \
+  --node_limit 4 \
+  --code_generation \
+  --vitis \
+  --csim \
+  --folder test_onnx_hls

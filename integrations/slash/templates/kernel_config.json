@@ -1,0 +1,26 @@
+{
+  "_comment": "Template for AutoHLS_Flow → SLASH manifest. Fill in fields marked <REQUIRED>.",
+  "schema_version": "1.0",
+  "project_name": "<REQUIRED: e.g. autohls_attention>",
+  "kernel_name": "kernel_nlp",
+  "hls_part": "xcv80-lsva4737-2MHP-e-S",
+  "clock": "3.33ns",
+  "clock_freq_hz": 300000000,
+  "target_freq_mhz": 300,
+  "slr_count": 3,
+  "data_type": "float32",
+  "slash_repo": "<REQUIRED: /path/to/SLASH>",
+  "output_name": "<REQUIRED: e.g. autohls_attention>",
+  "deployment_backend": "SLASH/VRT",
+  "instances": [
+    {"kernel_name": "kernel_nlp_slr0", "instance_name": "kernel_nlp_slr0_0", "slr": "SLR0"},
+    {"kernel_name": "kernel_nlp_slr1", "instance_name": "kernel_nlp_slr1_0", "slr": "SLR1"},
+    {"kernel_name": "kernel_nlp_slr2", "instance_name": "kernel_nlp_slr2_0", "slr": "SLR2"}
+  ],
+  "host_buffers": [
+    {"name": "buffer_in",  "c_type": "float", "elements": 150528, "memory": "HBM", "port": 0},
+    {"name": "buffer_out", "c_type": "float", "elements": 150528, "memory": "HBM", "port": 4}
+  ],
+  "host_scalars": [],
+  "notes": "Generated from AutoHLS_Flow v80 Transformer Attention benchmark"
+}

@@ -1,0 +1,20 @@
+{
+  "_comment": "Application-level runtime configuration template for V80 deployment.",
+  "app_name": "autohls_attention",
+  "version": "1.0",
+  "board": {
+    "device": "Alveo V80",
+    "bdf": "<BUS:DEVICE.FUNCTION – e.g. 0000:03:00.0>",
+    "initialization": "SLASH/AVED 25.1"
+  },
+  "performance": {
+    "target_latency_ms": null,
+    "batch_size": 1,
+    "pipeline_depth": 4,
+    "note": "Fill in after board-level measurement."
+  },
+  "paths": {
+    "vrtbin": "build/<project>_hw.vrtbin",
+    "host": "build/host"
+  }
+}

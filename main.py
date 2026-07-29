@@ -55,7 +55,7 @@ if __name__ == "__main__":
     parser.add_argument("--MAX_UF", type=int, default=0, help="Number of SLR. Default is 3")
     parser.add_argument("--ON_CHIP_MEM_SIZE", type=int, default=0, help="Number of SLR. Default is 3")
     parser.add_argument("--DSP", type=int, default=0, help="Number of SLR. Default is 3")
-    parser.add_argument("--device", type=str, default=None, help="Target device profile (e.g., AC7t1500)")
+    parser.add_argument("--device", type=str, default=None, help="Target device profile (e.g., Xilinx Alveo V80)")
     parser.add_argument("--has_uram", action="store_true", help="Force enabling URAM storage binding for large arrays")
     parser.add_argument("--node_limit", type=int, default=None, help="Limit the number of ONNX nodes to parse")
 
@@ -198,13 +198,13 @@ if __name__ == "__main__":
 
     res = ressources.Ressources()
     if args.device == "AC7t1500":
-        res.SLR = 3
+        res.SLR = 1
         res.ON_CHIP_MEM_SIZE = 25559040  # 195 Mb in bytes
         res.DSP = 2560  # MLP blocks
         res.factor = 1.0
         print(f"[Device Config] Loaded Achronix AC7t1500 profile: SLR={res.SLR}, Mem={res.ON_CHIP_MEM_SIZE} bytes, DSP={res.DSP}")
     elif args.device == "Alveo_V80":
-        res.SLR = 1
+        res.SLR = 3
         res.ON_CHIP_MEM_SIZE = (132 + 541) * 1024 * 1024 // 8  # BRAM + URAM in bytes
         res.DSP = 10848  # Alveo V80 DSPs
         res.factor = 1.0

@@ -1,6 +1,6 @@
 # AutoHLS_Flow: Automatic HLS Optimization and Code Generation Framework
 
-AutoHLS_Flow is a holistic, optimization-driven toolchain for automatic high-level synthesis (HLS) code generation for FPGA accelerators. It supports both High-Level Synthesis from affine C/C++ kernels and direct parsing & mapping from ONNX neural network models, leveraging polyhedral optimization, non-linear programming (AMPL/Gurobi), and dataflow architecture to generate highly efficient HLS-C++ pipelines and host code for AMD Vitis HLS.
+AutoHLS_Flow is a holistic, optimization-driven toolchain for automatic high-level synthesis (HLS) code generation for FPGA accelerators. It supports High-Level Synthesis from affine C/C++ kernels and incorporates a prototype ONNX frontend for extracting and mapping static-shape MatMul operators. By leveraging mathematical non-linear programming (AMPL/Gurobi) and dataflow architectures, it generates highly optimized HLS-C++ pipelines and host code for AMD Vitis HLS.
 
 ---
 
@@ -10,30 +10,34 @@ The overall compilation and optimization pipeline of AutoHLS_Flow is illustrated
 
 ```mermaid
 flowchart TD
-    subgraph Input ["1. Frontends & Parsing"]
-        A1[ONNX Models .onnx] -->|onnx_frontend.py| AST[Internal AST & Affine Loops]
-        A2[Affine C/C++ Kernels] -->|parser.py / extract.py| AST
+    subgraph Frontends ["1. Frontends & Lowering"]
+        A1[Affine C/C++ Kernels] -->|parser.py / extract.py| PoCC[PoCC / ISCC Dependency Analysis]
+        A2[ONNX MatMul Models .onnx] -->|onnx_frontend.py| Lower[Shape Inference & Loop Lowering]
     end
 
-    subgraph Optimization ["2. Mathematical Optimization & Polyhedral Analysis"]
-        AST -->|iscc.py / polyhedro.py| Poly[Polyhedral Loop Bounds & Dependencies]
-        Poly -->|memoryBound.py / analysis.py| NLP[AMPL NLP Mathematical Model]
+    subgraph IR ["2. Internal Affine Representation"]
+        PoCC --> IR_AST[Internal Affine Loop AST & Bounds]
+        Lower --> IR_AST
+    end
+
+    subgraph Optimization ["3. Mathematical Optimization & Scheduling"]
+        IR_AST -->|memoryBound.py / analysis.py| NLP[AMPL NLP Mathematical Model]
         NLP -->|Gurobi / AMPL Solver| Sol[Optimal Tiling & Unroll Factors]
     end
 
-    subgraph Partitioning ["3. Graph & Resource Partitioning"]
+    subgraph Partitioning ["4. Graph & Resource Partitioning"]
         Sol -->|splitKernel.py| Dataflow[Dataflow Graph & Fused Task Partitioning]
-        Dataflow -->|SLR Mapper| SLR[SLR/CU Resource Allocation]
+        Dataflow -->|SLR Mapper| SLR[SLR / CU Resource Allocation]
     end
 
-    subgraph CodeGen ["4. HLS C++ & Host Code Generation"]
+    subgraph CodeGen ["5. HLS C++ & Host Code Generation"]
         SLR -->|code_generation_dataflow.py| HLS[HLS Top-level output.cpp & slrX.cpp]
         SLR -->|host_generation| Host[Host Control Code & XRT Wrappers]
-        HLS --> PingPong[Ping-Pong Buffers & Stream FIFOs Generation]
+        HLS --> Buffers[Ping-Pong / Triple Buffers & Stream FIFOs]
     end
 
-    subgraph Synthesis ["5. Vitis HLS & Hardware Deployment"]
-        PingPong --> Vitis[AMD Vitis HLS / AVED 25.1]
+    subgraph Synthesis ["6. Vitis HLS & Hardware Deployment"]
+        Buffers --> Vitis[AMD Vitis HLS / AVED 25.1]
         Vitis --> CSIM[C Simulation / Accuracy Check]
         Vitis --> Synth[C Synthesis & IP Integration]
         Synth --> PDI[Bitstream / PDI Generation]
@@ -41,32 +45,30 @@ flowchart TD
 ```
 
 ### Architecture Highlights
-- **Polyhedral Loop Scheduling**: Automatically extracts loop dependencies and static iteration bounds.
+- **Dual Frontends**: Supports C/C++ affine loops (analyzed via ISCC/PoCC) and ONNX MatMul models (extracted via `onnx_frontend.py`), sharing unified optimization and backend code generators.
 - **NLP-based Resource Allocation**: Formulates hardware optimization into Non-Linear Programming models solved via AMPL & Gurobi for optimal tiling ($TC$) and unrolling factors ($UF$).
 - **Fused Task (FT) Dataflow Engine**: Transforms nested loops into fine-grained Fused Tasks communicating via HLS AXI-Stream FIFOs.
-- **Ping-Pong Buffers & Memory Hiding**: Decouples global DMA transfers from local tile computations to hide memory latencies.
+- **Stream Buffering & Memory Hiding**: Automatically generates Ping-Pong buffers (2-stage cyclic buffers) for read-only/write-only streams and Triple Buffers (3-stage cyclic buffers) for read-modify-write dataflows, while binding large arrays to URAM/BRAM (`#pragma HLS bind_storage ... impl=URAM`).
 
 ---
 
 ## 🧩 Supported ONNX Operators & Limitations
 
-AutoHLS_Flow features a custom ONNX frontend (`onnx_frontend.py`) designed to map deep learning operators directly to hardware dataflow pipelines.
+AutoHLS_Flow includes a prototype ONNX frontend (`onnx_frontend.py`) designed to extract linear algebra operations and lower them to the polyhedral optimization backend.
 
-### 1. Supported ONNX Operators
+### Currently Supported ONNX Operators
 
-| Operator Category | ONNX Operator | Supported Shapes & Dimensions | Hardware Mapping Strategy |
-| :--- | :--- | :--- | :--- |
-| **Matrix Operations** | `MatMul`, `Gemm` | 2D/3D/4D (e.g., `[B, M, K] x [B, K, N]`) | Tiled Systolic/Dataflow MatMul with Ping-Pong Buffers |
-| **Element-wise Math** | `Add`, `Sub`, `Mul`, `Div` | Any shape matching operand bounds | Pipelined element-wise streaming compute units |
-| **Activations** | `Relu` | Arbitrary Tensor shapes | Fully unrolled / pipelining inner compute loops |
-| **Normalization & Reduction** | `LayerNormalization`, `Softmax` | 2D/3D Tensors (Layer-dim reduction) | Intra-tile reduction trees with intermediate FIFOs |
+| Operator | Supported Form | Hardware Mapping Strategy |
+| :--- | :--- | :--- |
+| **MatMul** | Static-shape 2D matrix multiplication | Converted to affine $i/j/k$ loops and processed by the existing tiling/unrolling optimization backend |
 
-### 2. Constraints & Limitations
+*Note: Higher-dimensional MatMul, Gemm, element-wise operators, normalization, activation functions, and full-graph operator fusion are under active development.*
 
-- **Static Bounds Requirement**: Loop bounds and array dimensions must be statically determinable at compile time for `#pragma HLS ARRAY_PARTITION` and buffer allocation. Dynamic batch sizes are defaulted to 1 or resolved via `--update_shape`.
+### Constraints & Limitations
+
+- **Static Bounds Requirement**: Tensor dimensions and loop bounds must be statically determinable at compile time for `#pragma HLS ARRAY_PARTITION` and buffer allocation. Dynamic batch sizes default to 1 or are resolved via `--update_shape`.
 - **Affine Access Patterns**: Memory access indices must be affine combinations of loop iterators (e.g., `A[i][k]`, `B[k][j]`). Non-affine indirect accesses (e.g., `A[B[i]]`) are not currently supported by the polyhedral scheduler.
 - **Data Types**: Native support for `float` (32-bit floating point) and `double`. High-throughput fixed-point (`ap_int`, `ap_fixed`) generation is supported via C++ template specialization.
-- **Graph Topology**: Currently optimizes feed-forward DAG (Directed Acyclic Graph) topologies typical in Vision Transformers (e.g., DeiT, ViT) and GPT attention blocks.
 
 ---
 
@@ -76,9 +78,20 @@ Below is a complete walk-through from an input ONNX model to a fully generated V
 
 ### Step 1: Run AutoHLS_Flow Command
 
-To generate an HLS dataflow project targeting **AMD Versal HBM / Alveo V80** from an ONNX attention model:
-
+**Standard Alveo V80 Compilation:**
 ```bash
+python main.py \
+  --onnx_file onnx_files/deit_model.onnx \
+  --device Alveo_V80 \
+  --code_generation \
+  --vitis \
+  --csim \
+  --folder hls_output_demo
+```
+
+**Resource-Constrained Experiment (Overriding Device Budgets):**
+```bash
+# Explicitly constrain SLR, DSP, and on-chip memory limits
 python main.py \
   --onnx_file onnx_files/deit_model.onnx \
   --device Alveo_V80 \
@@ -95,7 +108,7 @@ python main.py \
 
 ### Step 2: Generated HLS Project Directory Structure
 
-Upon completion, `hls_output_demo/` contains all top-level HLS C++ files, multi-SLR partition files, Host XRT wrappers, and TCL synthesis scripts:
+Upon completion, `hls_output_demo/` contains top-level HLS C++ files, multi-SLR partition files, Host XRT wrappers, and TCL synthesis scripts:
 
 ```text
 hls_output_demo/
@@ -116,7 +129,7 @@ hls_output_demo/
 │   ├── csim.tcl                  # TCL script for C Simulation
 │   ├── vitis.tcl                 # TCL script for C Synthesis
 │   ├── xcl2.cpp / xcl2.hpp       # Xilinx OpenCL helper library
-└── tcl_scripts/                  # Secondary placement & physical opt TCL scripts
+└── tcl_scripts/                  # Placement & physical opt TCL scripts
 ```
 
 ### Step 3: Run C Simulation & Synthesis
@@ -132,11 +145,13 @@ bash hls_run.sh
 
 ## 📊 CSIM & C Synthesis Accuracy & Performance Results
 
-We evaluated AutoHLS_Flow on Transformer Attention blocks (DeiT/GPT) mapped onto **AMD Versal HBM / Alveo V80 (xcv80-lsva4737-2MHP-e-S)** using **AMD Vitis HLS 2025.1**.
+Detailed synthesis reports and reproducible evidence are available in [reports/v80_attention/](reports/v80_attention/).
+
+We evaluated AutoHLS_Flow on Transformer Attention sub-graphs (DeiT/GPT with 4 MatMul operations, $197 \times 768 \times 768$) mapped onto **AMD Versal HBM / Alveo V80 (xcv80-lsva4737-2MHP-e-S)** using **AMD Vitis HLS 2025.1**.
 
 ### 1. Correctness & CSIM Validation
 - **Functional Accuracy**: C Simulation (`csim.tcl`) was verified against NumPy / PyTorch golden reference outputs. Maximum relative error observed was $< 10^{-6}$ for float32 dataflows.
-- **FIFO Deadlock Freedom**: Verified through HLS Dataflow static channel analysis and CSIM runtime execution; all stream channels operate without stalling or deadlocks.
+- **FIFO Deadlock Freedom**: Verified through static channel analysis and runtime CSIM; all stream channels operate without stalling or deadlocks.
 
 ### 2. C Synthesis & Performance Summary
 
@@ -147,7 +162,7 @@ We evaluated AutoHLS_Flow on Transformer Attention blocks (DeiT/GPT) mapped onto
 | **Estimated Clock Period** | **`2.431 ns`** | **`0.90 ns` Clock Margin** |
 | **Estimated Max Freq ($F_{max}$)** | **`411.37 MHz`** | Exceeds Target Frequency |
 | **Execution Latency (Cycles)** | `3,651,775` ~ `3,657,121` cycles | Dataflow Pipeline Latency |
-| **Absolute Execution Time** | **`12.16 ms`** | Full Attention Graph Run |
+| **Absolute Execution Time** | **`12.16 ms`** | 4-MatMul Attention Sub-graph |
 
 ### 3. Resource Utilization Breakdown
 
@@ -163,7 +178,7 @@ We evaluated AutoHLS_Flow on Transformer Attention blocks (DeiT/GPT) mapped onto
 
 ## ✨ Key Features
 
-- Direct parsing and mapping of **ONNX models** to optimized HLS-C++ pipelines.
+- Direct extraction and mapping of **ONNX MatMul operators** to optimized HLS-C++ pipelines.
 - Support for **affine C/C++ kernels** with static loop bounds.
 - Automatic **loop scheduling**, **pragmas insertion**, and **code generation**.
 - Integration with **AMPL** for **Nonlinear Programming (NLP)**-based resource allocation.
@@ -220,11 +235,10 @@ cd /AutoHLS_Flow
 | `--folder`               | Output folder for generated code and reports (default: `hls_output`)        |
 | `--device`               | Target device profile (`Alveo_V80`, `AC7t1500`, etc.)                       |
 | `--name_function`        | Kernel function name (default: `kernel_nlp`)                               |
-| `--SLR`                  | Number of available Super Logic Regions                                    |
-| `--DSP`                  | Total number of available DSP slices                                       |
-| `--BRAM`, `--FF`, `--LUT`| FPGA resource budgets (optional)                                           |
+| `--SLR`                  | Number of available Super Logic Regions (overrides device profile if set)   |
+| `--DSP`                  | Total number of available DSP slices (overrides device profile if set)      |
 | `--MAX_BUFFER_SIZE`      | Maximum allowed on-chip buffer size per array                             |
-| `--ON_CHIP_MEM_SIZE`     | Total available on-chip memory                                             |
+| `--ON_CHIP_MEM_SIZE`     | Total available on-chip memory (overrides device profile if set)            |
 | `--MAX_UF`               | Maximum loop unrolling factor                                              |
 | `--reuse_nlp`            | Use previously computed NLP results                                        |
 | `--vitis`                | Enable synthesis using AMD Vitis HLS                                       |
@@ -234,8 +248,6 @@ cd /AutoHLS_Flow
 | `--no_distribution`      | Disable ISCC-based loop distribution                                       |
 | `--update_shape`         | Automatically update shape-related constraints                             |
 | `--ap_multiple_burst`    | Enable multiple AXI burst access inference                                 |
-| `--cyclic_buffer`        | Use cyclic buffering strategy for data reuse                               |
-| `--node_limit`           | Limit number of ONNX nodes to compile                                      |
+| `--not_cyclic_buffer`    | Disable cyclic buffering optimization                                      |
+| `--node_limit`           | Limit number of ONNX MatMul nodes to parse/compile                         |
 | `--has_uram`             | Force enabling URAM storage binding for large arrays                       |
-| `--verbose`              | Print detailed information during execution                                |
-| `--debug`                | Enable debug mode                                                          |

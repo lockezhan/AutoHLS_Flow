@@ -290,7 +290,7 @@ class SlashExporter:
 
         return {
             "schema_version": "1.0",
-            "generation_timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+            "generation_timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "autohls_flow_version": autohls_sha,
             "slash_bridge_version": slash_sha,
             "project_name": self.project_name,

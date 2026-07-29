@@ -53,6 +53,7 @@ dummy_deit.onnx
 build_*
 tmp/
 
-# test
-
-test_*
+# Ignore test output directories, but not the test suite scripts
+test_onnx_hls/
+test_onnx_gpt_file/
+test_onnx_hls_limited/

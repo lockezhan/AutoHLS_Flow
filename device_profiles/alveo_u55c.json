@@ -1,0 +1,23 @@
+{
+  "_comment": "AMD Alveo U55C device profile for AutoHLS_Flow. Deployment backend: Vitis/OpenCL (xclbin flow).",
+  "name": "Alveo_U55C",
+  "display_name": "AMD Alveo U55C",
+  "hls_part": "xcu55c-fsvh2892-2L-e",
+  "fpga_family": "virtexuplus",
+  "slr_count": 3,
+  "dsp": 9024,
+  "bram_18k": 4032,
+  "uram": 640,
+  "on_chip_mem_bytes": 88080384,
+  "has_uram": false,
+  "default_freq_mhz": 220,
+  "default_clock_period_ns": "4.5",
+  "vitis_version_recommended": "2023.2",
+  "deployment_backend": "Vitis/OpenCL",
+  "deployment_note": "Alveo U55C uses standard Vitis OpenCL xclbin flow via hls_run.sh.",
+  "platform_string": "xilinx_u55c_gen3x16_xdma_3_202210_1",
+  "platform_note": "Use platform_string with v++ for xclbin build and xclbin-based host code.",
+  "hbm_banks": 0,
+  "pcie_gen": 3,
+  "architecture": "UltraScale+"
+}

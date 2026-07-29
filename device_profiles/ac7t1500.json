@@ -1,0 +1,23 @@
+{
+  "_comment": "Achronix AC7t1500 device profile for AutoHLS_Flow. Deployment backend: Custom (Achronix SDK).",
+  "name": "AC7t1500",
+  "display_name": "Achronix AC7t1500",
+  "hls_part": "xct1500-2mpq256e",
+  "fpga_family": "achronix",
+  "slr_count": 1,
+  "dsp": 2560,
+  "bram_18k": 2048,
+  "uram": 0,
+  "on_chip_mem_bytes": 25559040,
+  "has_uram": false,
+  "default_freq_mhz": 250,
+  "default_clock_period_ns": "4.0",
+  "vitis_version_recommended": null,
+  "deployment_backend": "Custom",
+  "deployment_note": "Achronix AC7t1500 uses a custom SDK flow. Consult Achronix documentation for deployment steps.",
+  "platform_string": null,
+  "platform_note": "Custom flow; no standard platform string.",
+  "hbm_banks": 0,
+  "pcie_gen": 4,
+  "architecture": "Speedster7t"
+}

@@ -1,0 +1,23 @@
+{
+  "_comment": "AMD Alveo V80 device profile for AutoHLS_Flow. Deployment backend: SLASH/VRT (not Vitis OpenCL).",
+  "name": "Alveo_V80",
+  "display_name": "AMD Alveo V80",
+  "hls_part": "xcv80-lsva4737-2MHP-e-S",
+  "fpga_family": "versalhbm",
+  "slr_count": 3,
+  "dsp": 10848,
+  "bram_18k": 7482,
+  "uram": 1925,
+  "on_chip_mem_bytes": 88538112,
+  "has_uram": true,
+  "default_freq_mhz": 300,
+  "default_clock_period_ns": "3.33",
+  "vitis_version_recommended": "2025.1",
+  "deployment_backend": "SLASH/VRT",
+  "deployment_note": "Alveo V80 uses SLASH Segmented Configuration flow with VRT runtime. Physical deployment requires SLASH/AVED initialization. Use 'python integrations/slash/export_to_slash.py' to generate SLASH project.",
+  "platform_string": null,
+  "platform_note": "V80 does NOT use xclbin/OpenCL. platform_string is null by design.",
+  "hbm_banks": 32,
+  "pcie_gen": 5,
+  "architecture": "Versal HBM Series"
+}

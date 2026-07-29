@@ -62,7 +62,7 @@ AutoHLS_Flow includes a prototype ONNX frontend (`onnx_frontend.py`) designed to
 | :--- | :--- | :--- |
 | **MatMul** | Static-shape 2D matrix multiplication | Converted to affine $i/j/k$ loops and processed by the existing tiling/unrolling optimization backend |
 
-*Note: Higher-dimensional MatMul, Gemm, element-wise operators, normalization, activation functions, and full-graph operator fusion are under active development.*
+*Note: The frontend currently filters only for `MatMul` nodes. Higher-dimensional inputs (like batch dimensions in 3D/4D tensors) are not retained during lowering. Support for Gemm, Add/Sub/Mul/Div, Activations (Relu/Softmax), and LayerNorm is planned but not currently implemented in the frontend lowering logic.*
 
 ### Constraints & Limitations
 
@@ -132,14 +132,26 @@ hls_output_demo/
 └── tcl_scripts/                  # Placement & physical opt TCL scripts
 ```
 
-### Step 3: Run C Simulation & Synthesis
+### Step 3: Export to SLASH and Deploy on Alveo V80
 
-Navigate into the generated project folder and run Vitis HLS:
+AutoHLS_Flow generates the HLS IP. To physically deploy on an Alveo V80, we use the [SLASH/VRT](https://github.com/hpc-aulmamei/SLASH.git) backend.
 
+Export the HLS output to a SLASH project bundle:
 ```bash
-cd hls_output_demo
-bash hls_run.sh
+python integrations/slash/export_to_slash.py \
+  --hls-project hls_output_demo \
+  --slash-root /path/to/SLASH \
+  --project-name my_v80_project \
+  --output-dir slash_projects/my_v80_project
 ```
+
+Then build and run the hardware binary:
+```bash
+cd slash_projects/my_v80_project
+bash run_v80.sh <BDF> /path/to/SLASH
+```
+
+*(For C Simulation and C Synthesis without hardware, you can run `bash hls_output_demo/hls_run.sh` or `vitis-run --mode hls --tcl hls_output_demo/src/vitis.tcl`)*
 
 ---
 
@@ -251,3 +263,14 @@ cd /AutoHLS_Flow
 | `--not_cyclic_buffer`    | Disable cyclic buffering optimization                                      |
 | `--node_limit`           | Limit number of ONNX MatMul nodes to parse/compile                         |
 | `--has_uram`             | Force enabling URAM storage binding for large arrays                       |
+
+### SLASH/VRT Backend Arguments
+
+| Argument                 | Description                                                                 |
+|--------------------------|-----------------------------------------------------------------------------|
+| `--backend`              | `hls` (codegen only, default) or `slash` (codegen + export)                 |
+| `--export_slash`         | Export SLASH project bundle after HLS codegen                               |
+| `--slash_root`           | Path to SLASH repository root (required for export)                         |
+| `--project_name`         | Name for the exported SLASH project                                         |
+| `--build_slash`          | Invoke the SLASH CMake hardware build immediately after export              |
+| `--dry_run`              | Simulate generation and pre-flight checks without writing files             |

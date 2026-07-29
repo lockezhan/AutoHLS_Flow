@@ -101,7 +101,7 @@ def tmp_hls_project(tmp_path: Path) -> Path:
 def tmp_slash_root(tmp_path: Path) -> Path:
     """Create a fake SLASH root with abstract shell DCP."""
     slash = tmp_path / "SLASH"
-    dcp_dir = slash / "linker/resources/abstract_shell"
+    dcp_dir = slash / "submodules/v80-vitis-flow/resources/abstract_shell"
     dcp_dir.mkdir(parents=True)
     (dcp_dir / "abs_shell_slash.dcp").write_text("# fake DCP", encoding="utf-8")
     return slash

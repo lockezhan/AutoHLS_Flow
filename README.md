@@ -38,9 +38,9 @@ flowchart TD
 
     subgraph Synthesis ["6. Vitis HLS & Hardware Deployment"]
         Buffers --> Vitis[AMD Vitis HLS / AVED 25.1]
-        Vitis --> CSIM[C Simulation / Accuracy Check]
-        Vitis --> Synth[C Synthesis & IP Integration]
-        Synth --> PDI[Bitstream / PDI Generation]
+        HLS[HLS C++ Kernel] --> Vitis[C Synthesis]
+        Vitis --> Export[Export to SLASH/VRT]
+        Export --> HW[Hardware Compilation / Deployment]
     end
 ```
 
@@ -66,9 +66,9 @@ AutoHLS_Flow includes a prototype ONNX frontend (`onnx_frontend.py`) designed to
 
 ### Constraints & Limitations
 
-- **Static Bounds Requirement**: Tensor dimensions and loop bounds must be statically determinable at compile time for `#pragma HLS ARRAY_PARTITION` and buffer allocation. Dynamic batch sizes default to 1 or are resolved via `--update_shape`.
+- **Static Bounds Requirement**: Tensor dimensions and loop bounds must be statically determinable at compile time for `#pragma HLS ARRAY_PARTITION` and buffer allocation. Dynamic batch sizes are not supported.
 - **Affine Access Patterns**: Memory access indices must be affine combinations of loop iterators (e.g., `A[i][k]`, `B[k][j]`). Non-affine indirect accesses (e.g., `A[B[i]]`) are not currently supported by the polyhedral scheduler.
-- **Data Types**: Native support for `float` (32-bit floating point) and `double`. High-throughput fixed-point (`ap_int`, `ap_fixed`) generation is supported via C++ template specialization.
+- **Data Types**: Currently only `float32` (32-bit floating point) is supported and modeled by the resource allocator.
 
 ---
 
@@ -151,7 +151,7 @@ cd slash_projects/my_v80_project
 bash run_v80.sh <BDF> /path/to/SLASH
 ```
 
-*(For C Simulation and C Synthesis without hardware, you can run `bash hls_output_demo/hls_run.sh` or `vitis-run --mode hls --tcl hls_output_demo/src/vitis.tcl`)*
+*(For C Simulation and C Synthesis without hardware, you can run `vitis-run --mode hls --tcl hls_output_demo/src/vitis.tcl` or `vitis-run --mode hls --tcl hls_output_demo/src/csim.tcl`)*
 
 ---
 

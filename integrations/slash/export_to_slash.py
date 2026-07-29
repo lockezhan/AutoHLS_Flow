@@ -97,6 +97,7 @@ class SlashExporter:
         slash_root: Optional[str | Path] = None,
         device_profile: Optional[dict] = None,
         target_frequency: Optional[int] = None,
+        slash_version: str = "auto",
         dry_run: bool = False,
         verbose: bool = False,
         force: bool = False,
@@ -106,6 +107,7 @@ class SlashExporter:
         self.project_name = project_name
         self.output_dir = Path(output_dir).resolve()
         self.device_profile = device_profile or {}
+        self.slash_version = slash_version
         self.dry_run = dry_run
         self.verbose = verbose
         self.force = force
@@ -189,14 +191,14 @@ class SlashExporter:
                     "  Clone SLASH from: https://github.com/hpc-aulmamei/SLASH.git"
                 )
             else:
-                abs_shell = self.slash_root / "linker/resources/abstract_shell/abs_shell_slash.dcp"
+                abs_shell = self.slash_root / "submodules/v80-vitis-flow/resources/abstract_shell/abs_shell_slash.dcp"
                 if not abs_shell.exists():
                     errors.append(
                         f"SLASH abstract shell DCP missing: {abs_shell}\n"
                         "  Run the one-time installer:\n"
-                        f"  cd {self.slash_root}/linker/src && "
+                        f"  cd {self.slash_root}/submodules/v80-vitis-flow/src && "
                         "python3 main.py install --build-dir "
-                        f"{self.slash_root}/linker/resources/abstract_shell_build"
+                        f"{self.slash_root}/submodules/v80-vitis-flow/resources/abstract_shell_build"
                     )
 
         if errors:
@@ -274,25 +276,22 @@ class SlashExporter:
         k2k_path: Optional[Path],
         nlp_tiling: dict,
     ) -> dict:
-        slr_kernels = [f"{kernel_name}_slr{i}" for i in range(len(hls_sources["slrs"]))]
-        if not slr_kernels:
-            slr_kernels = [kernel_name]
-
-        slr_map = {
-            f"slr{i}": f"{slr_kernels[i]}_0"
-            for i in range(len(slr_kernels))
-        }
+        # The top-level kernel encompasses all SLR sub-modules in AutoHLS_Flow.
+        # We only generate one HLS component (output.cpp), so we only list the top kernel.
+        slr_kernels = [kernel_name]
+        slr_map = {"slr0": f"{kernel_name}_0"}
 
         autohls_sha = self._get_git_sha(Path(__file__).parents[2])
-        slash_sha = (
-            self._get_git_sha(self.slash_root) if self.slash_root else "not-available"
-        )
+        if self.slash_version == "auto":
+            slash_ver = self._get_git_sha(self.slash_root) if self.slash_root else "not-available"
+        else:
+            slash_ver = self.slash_version
 
         return {
             "schema_version": "1.0",
             "generation_timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "autohls_flow_version": autohls_sha,
-            "slash_bridge_version": slash_sha,
+            "slash_bridge_version": slash_ver,
             "project_name": self.project_name,
             "kernel_name": kernel_name,
             "kernel_count": len(slr_kernels),
@@ -468,8 +467,10 @@ class SlashExporter:
             f'        std::cerr << "Usage: " << argv[0] << " <BDF> <{manifest["project_name"]}.vrtbin>" << std::endl;\n'
             '        return 1;\n'
             '    }\n'
+            '    // Note: This is a minimal skeleton. Workload-specific buffer allocation,\n'
+            '    //       argument binding, and data transfer logic must be implemented here.\n'
             '    vrt::Device device(argv[1], argv[2]);\n'
-            f'    vrt::Kernel kernel(device, "{manifest["kernel_name"]}_slr0_0");\n'
+            f'    vrt::Kernel kernel(device, "{manifest["kernel_name"]}_0");\n'
             '    kernel.start();\n'
             '    kernel.wait();\n'
             '    device.cleanup();\n'
@@ -500,8 +501,9 @@ class SlashExporter:
             '  -DVRTD_INCLUDE_LIBSLASH=ON 2>&1 | tee -a "${LOG_FILE}"\n\n'
             f'cmake --build build --target hls_{manifest["kernel_name"]} 2>&1 | tee -a "${{LOG_FILE}}"\n'
             f'cmake --build build --target {manifest["project_name"]}_hw 2>&1 | tee -a "${{LOG_FILE}}"\n\n'
-            f'v80-smi program build/{manifest["project_name"]}_hw.vbin -d ${{BDF}} 2>&1 | tee -a "${{LOG_FILE}}"\n'
-            f'./build/host ${{BDF}} build/{manifest["project_name"]}_hw.vbin 2>&1 | tee -a "${{LOG_FILE}}"\n',
+            f'# Note: SLASH deployment typically invokes the host executable directly with the .vrtbin\n'
+            f'# which automatically handles device programming via VRT.\n'
+            f'./build/host ${{BDF}} build/{manifest["project_name"]}_hw.vrtbin 2>&1 | tee -a "${{LOG_FILE}}"\n',
             encoding="utf-8",
         )
         run_sh.chmod(0o755)
@@ -584,6 +586,7 @@ def main() -> None:
         project_name=args.project_name,
         output_dir=args.output_dir,
         target_frequency=args.target_frequency,
+        slash_version=args.slash_version,
         dry_run=args.dry_run,
         verbose=args.verbose,
         force=args.force,

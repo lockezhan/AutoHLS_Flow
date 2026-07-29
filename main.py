@@ -147,6 +147,8 @@ def build_parser() -> argparse.ArgumentParser:
                            "WARNING: hardware build can take several hours. "
                            "Requires --slash_root and explicit opt-in."
                        ))
+    slash.add_argument("--slash_version", type=str, default="auto",
+                       help="SLASH version tag for manifest (default: auto = git SHA)")
     slash.add_argument("--dry_run", action="store_true",
                        help="Simulate all steps without writing files or invoking Vitis HLS.")
 
@@ -185,11 +187,16 @@ def validate_args(args: argparse.Namespace) -> None:
 
     need_slash = args.backend == "slash" or args.export_slash or args.build_slash
     if need_slash and not args.slash_root:
-        print("[ERROR] --backend slash / --export_slash / --build_slash require --slash_root.", file=sys.stderr)
-        sys.exit(1)
+        if not args.dry_run:
+            print("[ERROR] --backend slash / --export_slash / --build_slash require --slash_root.", file=sys.stderr)
+            sys.exit(1)
 
     if args.build_slash and not need_slash:
         print("[ERROR] --build_slash requires --slash_root.", file=sys.stderr)
+        sys.exit(1)
+
+    if need_slash and not args.code_generation:
+        print("[ERROR] SLASH Backend requires --code_generation.", file=sys.stderr)
         sys.exit(1)
 
 
@@ -425,7 +432,7 @@ if __name__ == "__main__":
             code_gen.code_gen(
                 args.update_shape, res.SLR, nlp_file, nlp_log,
                 args.file, output, host_name, schedule, analysis,
-                getattr(res, "has_uram", False),
+                getattr(res, "has_uram", False), args.not_cyclic_buffer
             )
 
             # Generate device-aware TCL scripts
@@ -477,7 +484,7 @@ if __name__ == "__main__":
                 utilities.print_summary(args.folder, args.file)
 
     # ── SLASH Export ──────────────────────────────────────────────────────────
-    do_slash_export = args.backend == "slash" or args.export_slash
+    do_slash_export = args.backend == "slash" or args.export_slash or args.build_slash
     if do_slash_export:
         from integrations.slash.export_to_slash import SlashExporter
         slash_out = f"slash_projects/{args.project_name or 'autohls_project'}"
@@ -488,11 +495,12 @@ if __name__ == "__main__":
             output_dir=slash_out,
             device_profile=profile,
             target_frequency=profile["default_freq_mhz"] if profile else 300,
+            slash_version=args.slash_version,
             dry_run=args.dry_run,
             verbose=True,
         )
         if args.dry_run:
-            exporter.dry_run()
+            exporter.dry_run_export()
         else:
             exporter.export()
 

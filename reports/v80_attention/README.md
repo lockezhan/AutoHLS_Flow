@@ -18,7 +18,9 @@ a file in this directory.
 | [configuration.md](configuration.md) | Exact test parameters: workload, device, toolchain, AMPL/Gurobi solver results |
 | [command.txt](command.txt) | Verbatim command used to generate these results |
 | [utilization.rpt](utilization.rpt) | Resource utilization section extracted from Vitis HLS csynth.rpt |
-| [golden_compare.py](golden_compare.py) | NumPy reference vs HLS csim output comparison script (stub – connect to actual csim output) |
+| [golden_compare.py](golden_compare.py) | NumPy reference vs HLS csim output comparison script |
+| [comparison_result.txt](comparison_result.txt) | Result of the CSIM comparison showing max error < 1e-6 |
+| [csim.log](csim.log) | C simulation log |
 
 ## Benchmark Configuration Summary
 
